@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import zipfile
 import subprocess
@@ -51,6 +52,13 @@ def preprocess_notebooks(
                         '<img src="', f'<img src="{root_path}/'
                     )
 
+                    # Handle markdown images: ![Alt](path)
+                    cell.source = re.sub(
+                        r'!\[([^\]]*)\]\((?!http)([^)]+)\)',
+                        lambda m: f'![{m.group(1)}]({root_path}/{m.group(2)})',
+                        cell.source
+                    )
+
             # Write the preprocessed notebook to the output file
             with open(output_path, "w") as outfile:
                 nbformat.write(notebook, outfile)
@@ -77,7 +85,7 @@ def create_html_files(jupyter_files: List[Path], remove_original: bool = True):
     """
 
     for f in jupyter_files:
-        subprocess.run(["jupyter", "nbconvert", "--to", "html", f])
+        subprocess.run(["jupyter", "nbconvert", "--to", "html", "--embed-images", f])
         print(f"\tINFO: Created {os.path.basename(f).replace('.ipynb', '.html')}")
 
     if remove_original:
