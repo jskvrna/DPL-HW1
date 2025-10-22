@@ -1,7 +1,9 @@
-from typing import List, Tuple, Union
+from typing import List
+from typing import Tuple
+from typing import Union
 
-import torch
 import numpy as np
+import torch
 
 
 def reshape_to_vectors(*arrays: np.ndarray) -> List[np.ndarray]:
@@ -86,13 +88,9 @@ def dataset_stats(
             - The number of unique classes.
             - The total number of samples across training, validation, and test datasets.
     """
-    num_features = (
-        X_train[0].size if isinstance(X_train, np.ndarray) else X_train[0].numel()
-    )
+    num_features = X_train[0].size if isinstance(X_train, np.ndarray) else X_train[0].numel()
     num_classes = (
-        len(np.unique(y_train))
-        if isinstance(y_train, np.ndarray)
-        else len(torch.unique(y_train))
+        len(np.unique(y_train)) if isinstance(y_train, np.ndarray) else len(torch.unique(y_train))
     )
     num_samples = len(X_train) + len(X_val) + len(X_test)
 
@@ -128,21 +126,11 @@ def dataset_stats(
 
 
 def exponential_moving_average(data: np.ndarray, alpha: float) -> np.ndarray:
-    """Calculate the exponential moving average of a data sequence.
-
-    Args:
-        data (np.ndarray): The input data sequence.
-        alpha (float): The smoothing factor for the EMA.
-
-    Returns:
-        np.ndarray: The exponential moving average of the input data.
-    """
-    ema = np.zeros(data.size)
+    data = np.asarray(data, dtype=float)
+    ema = np.zeros_like(data)
     ema[0] = data[0]
-    for i in range(1, data.size):
-        weights = np.flip((1 - alpha) ** np.arange(i + 1))
-        weighted_sum = np.sum(weights * data[: i + 1])
-        ema[i] = weighted_sum / np.sum(weights)
+    for i in range(1, len(data)):
+        ema[i] = alpha * data[i] + (1 - alpha) * ema[i - 1]
     return ema
 
 
