@@ -1,14 +1,15 @@
 # HW 1 - Classification
 
-This is official repository for the first homework assignment of the
-course [UROB](https://intranet.fel.cvut.cz/cz/education/bk/predmety/66/51/p6651806.html). The assignment is about
-classification - its understanding and implementation.
+This repository contains the first homework assignment for
+[Deep Learning Essentials (BECM33DPL)](https://cw.fel.cvut.cz/wiki/courses/becm33dpl/start).
+The assignment introduces classification through k-nearest neighbors, linear classifiers, and neural networks.
+
+See the [HW 1 course page](https://cw.fel.cvut.cz/wiki/courses/becm33dpl/tutorials/hw1) for assignment details.
 
 ## Sections
 
-- [HW 2 - Classification](#hw-2---classification)
+- [HW 1 - Classification](#hw-1---classification)
   - [Sections](#sections)
-  - [Requirements](#requirements)
   - [What will you learn?](#what-will-you-learn)
   - [Getting started](#getting-started)
   - [Working on the Assignments](#working-on-the-assignments)
@@ -91,7 +92,8 @@ To be able to start with the assignments, follow these simple steps:
    terminal:
 
     ```shell
-    git clone https://github.com/urob-ctu/classification.git
+    git clone https://github.com/jskvrna/DPL-HW1.git
+    cd DPL-HW1
     ```
 
 2. **Install System Dependencies**: Before proceeding, ensure that you have the following system dependencies installed:
@@ -108,9 +110,9 @@ To be able to start with the assignments, follow these simple steps:
     pip install -r requirements.txt
     ```
 
-    Then you have to install pytorch on your machine with this url: [Pytorch](https://pytorch.org/get-started/locally/)
+    Then install PyTorch for your machine by following the [PyTorch installation instructions](https://pytorch.org/get-started/locally/).
 
-    After that go to the classification directory and install the `classification` package by running:
+    From the repository root (`DPL-HW1`), install the homework package (`hw1`) by running:
 
     ```shell
     pip install -e .
@@ -154,7 +156,7 @@ the project's root directory. To make steady progress, adhere to the following s
 6. [Training the Multilayer Perceptron](mlp_part_2.ipynb)
 
 Inside each notebook, you will find task descriptions and the specific files you need to modify. These editable files
-are situated in the `assignments` directory. Please refrain from altering any other files. Within these designated
+are situated in the `src/assignments` directory. Please refrain from altering any other files. Within these designated
 files, make changes only to sections resembling the following:
 
 ```python
@@ -193,4 +195,5 @@ hw1-submit
 ```
 
 This will create a zip file named `hw1.zip` in the project's root directory. Submit this file to
-the [BRUTE](https://cw.felk.cvut.cz/brute/student/) system.
+the HW 1 assignment for Deep Learning Essentials (BECM33DPL) in
+[BRUTE](https://cw.felk.cvut.cz/brute/student/).
