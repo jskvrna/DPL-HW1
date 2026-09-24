@@ -133,17 +133,14 @@ To be able to start with the assignments, follow these simple steps:
     INFO: Environment is correctly set up.
     ```
    
-5. **Choose Your IDE**: Next, open the project in your preferred Integrated Development Environment (IDE). While we
-   suggest PyCharm, the choice ultimately lies with you.
+5. **Choose Your IDE**: We recommend Visual Studio Code (VS Code), but you are welcome to use your preferred
+   Integrated Development Environment (IDE).
 
-   > **Warning**
-   > If you are using PyCharm, you need to disable the *invert image outputs for dark themes* if you are using one. You
-   can
-   > do it by going to Preferences | Languages & Frameworks | Jupyter | Invert image outputs for dark themes. For users
-   of alternative Integrated Development Environments (IDEs), please locate the analogous setting. Failing to make this
-   adjustment could result in images that might not look as visually appealing as intended. :)
-   
 ## Working on the Assignments
+
+> We encourage you to write the assignment code yourself without using AI tools to fill it in. Reading the
+> documentation and experimenting with your own implementation will give you deeper insight into how the methods
+> work. :)
 
 The homework is divided into several sections, each residing in its own notebook. You can locate these notebooks in
 the project's root directory. To make steady progress, adhere to the following sequence:
