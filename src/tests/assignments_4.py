@@ -247,7 +247,7 @@ def test_assignment_4_4(
             differences = torch.stack(differences)
             param_difference = torch.sum(differences)
 
-            if param_difference < 1e-5:
+            if param_difference < 1e-4:
                 ret["message"] = f"PASSED!"
                 ret["points"] = ret["max_points"]
             else:

@@ -59,6 +59,43 @@ def plot_cifar10(X: np.ndarray, y: np.ndarray) -> None:
     plt.show()
 
 
+def plot_confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray, class_names: List[str]) -> None:
+    """Show a confusion matrix of true labels (rows) against predicted labels (columns).
+
+    Args:
+        y_true (np.ndarray): The true labels of shape (N,).
+        y_pred (np.ndarray): The predicted labels of shape (N,).
+        class_names (List[str]): The name of each class, indexed by label.
+
+    Returns:
+        None
+
+    Note:
+        Each cell shows the number of samples. The color shows the share of the row,
+        so classes with different numbers of samples are comparable.
+    """
+    num_classes = len(class_names)
+    matrix = np.zeros((num_classes, num_classes), dtype=int)
+    np.add.at(matrix, (np.asarray(y_true, dtype=int), np.asarray(y_pred, dtype=int)), 1)
+    row_share = matrix / np.maximum(matrix.sum(axis=1, keepdims=True), 1)
+
+    fig, ax = plt.subplots(figsize=(8, 7))
+    image = ax.imshow(row_share, cmap="Blues", vmin=0, vmax=1)
+    for i in range(num_classes):
+        for j in range(num_classes):
+            ax.text(j, i, matrix[i, j], ha="center", va="center", fontsize=9,
+                    color="white" if row_share[i, j] > 0.5 else "black")
+    ax.set_xticks(range(num_classes), labels=class_names, rotation=45, ha="right")
+    ax.set_yticks(range(num_classes), labels=class_names)
+    ax.set_xlabel("Predicted class")
+    ax.set_ylabel("True class")
+    accuracy = np.trace(matrix) / max(matrix.sum(), 1)
+    ax.set_title(f"Confusion matrix (accuracy {accuracy:.1%})")
+    fig.colorbar(image, ax=ax, fraction=0.046, pad=0.04, label="Share of the true class")
+    plt.tight_layout()
+    plt.show()
+
+
 def plot_knn_cross_validation(k_to_metrics: dict, label_names: list = None):
     """Show the results of cross-validation for different k values in KNN.
 

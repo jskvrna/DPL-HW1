@@ -19,47 +19,25 @@ def reshape_to_vectors(*arrays: np.ndarray) -> List[np.ndarray]:
     return [array.reshape(array.shape[0], -1) for array in arrays]
 
 
-def normalize(*arrays: np.ndarray) -> List[np.ndarray]:
-    """Normalize the input arrays using the mean and standard deviation.
+def normalize_per_channel(*arrays: np.ndarray) -> List[np.ndarray]:
+    """Normalize images with one mean and one standard deviation per color channel.
 
     Args:
-        *arrays (np.ndarray): One or more NumPy arrays to be normalized.
+        *arrays (np.ndarray): One or more image arrays of shape (N, H, W, C). The first
+            array should be the training data.
 
     Returns:
-        List[np.ndarray]: A list of normalized arrays with mean 0 and standard deviation 1.
+        List[np.ndarray]: A list of normalized arrays with the same shapes.
 
     Note:
-        All arrays are normalized using a common mean and standard deviation computed
-        from concatenating the input arrays along the first axis.
+        The C means and standard deviations are computed over all pixels of all images
+        in the first (training) array and then applied to every array, as is standard
+        for CNNs (e.g., the ImageNet mean and std). Validation and test data therefore
+        do not influence the preprocessing.
     """
-    # Calculate the common mean and standard deviation
-    mean = np.mean(np.concatenate(arrays), axis=0)
-    std = np.std(np.concatenate(arrays), axis=0)
+    mean = np.mean(arrays[0], axis=(0, 1, 2))
+    std = np.std(arrays[0], axis=(0, 1, 2))
     return [(array - mean) / std for array in arrays]
-
-
-def normalize_torch(*arrays: torch.Tensor) -> List[torch.Tensor]:
-    """Normalize the input arrays using the mean and standard deviation.
-
-    Args:
-        *arrays (torch.Tensor): One or more PyTorch tensors to be normalized.
-
-    Returns:
-        List[torch.Tensor]: A list of normalized tensors with mean 0 and standard deviation 1.
-
-    Note:
-        All tensors are normalized using a common mean and standard deviation computed
-        from concatenating the input tensors along the first axis.
-    """
-    print(f"arrays: {arrays[0].shape}")
-    # Calculate the common mean and standard deviation
-    mean = torch.mean(torch.cat(arrays, dim=0), dim=0).float()
-    std = torch.std(torch.cat(arrays, dim=0), dim=0).float()
-    return {
-        "normalized_arrays": [(array - mean) / std for array in arrays],
-        "mean": mean,
-        "std": std,
-    }
 
 
 def dataset_stats(

@@ -1,6 +1,7 @@
 import os
 import shutil
 import pickle
+import hashlib
 import tarfile
 import subprocess
 import urllib.request
@@ -11,6 +12,7 @@ import yaml
 import numpy as np
 from jinja2 import Template
 from sklearn.model_selection import train_test_split
+from tqdm.auto import tqdm
 
 from .plot import plot_cifar10
 
@@ -57,77 +59,93 @@ def load_config(config_path: str, args: dict) -> dict:
     return config
 
 
+CIFAR10_URLS = (
+    # Byte-identical copy of the official archive; much faster than the original server.
+    "https://huggingface.co/datasets/liangnanying/cifar-10-python/resolve/main/cifar-10-python.tar.gz",
+    "https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz",
+)
+# MD5 of the official archive. The loader unpickles these files, so never skip this check.
+CIFAR10_MD5 = "c58f30108f718f92721af3b95e74349a"
+
+
+def _download_with_progress(url: str, destination: str) -> None:
+    """Downloads a file and shows a progress bar."""
+    with tqdm(unit="B", unit_scale=True, unit_divisor=1024, miniters=1, desc="Download") as progress:
+
+        def report(block_count: int, block_size: int, total_size: int) -> None:
+            if total_size > 0:
+                progress.total = total_size
+            progress.update(block_count * block_size - progress.n)
+
+        urllib.request.urlretrieve(url, destination, reporthook=report)
+
+
+def _md5(file: str) -> str:
+    digest = hashlib.md5()
+    with open(file, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def download_cifar10(directory: str) -> None:
     """Downloads and extracts the CIFAR-10 dataset into the specified directory.
 
     This function checks if the CIFAR-10 dataset is already present in the specified directory.
-    If not, it downloads the dataset, extracts it, and moves the extracted files to the directory.
+    If not, it downloads the archive with a progress bar, trying the mirrors in `CIFAR10_URLS`
+    in order, verifies its checksum, extracts it, and moves the extracted files to the directory.
+    Temporary files are kept next to the target directory.
 
     Args:
         directory (str): The directory where the dataset will be downloaded and extracted.
 
     Returns:
         None
-
-    Note:
-        Requires `wget` and `tar` to be available in the system's PATH.
     """
 
     if os.path.exists(directory):
         print("CIFAR-10 dataset already exists")
         return
 
-    # Download CIFAR-10 dataset
-    url = "https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"
-    tar = "cifar-10-python.tar.gz"
+    parent = os.path.dirname(os.path.abspath(directory))
+    os.makedirs(parent, exist_ok=True)
+    tar = os.path.join(parent, "cifar-10-python.tar.gz")
+    extracted_folder = os.path.join(parent, "cifar-10-batches-py")
 
-    # Check if the tar file already exists
-    if os.path.exists(tar):
-        os.remove(tar)
-        
-    # Check if the tar file already exists and remove it if necessary
-    if os.path.exists(tar):
-        try:
-            os.remove(tar)
-            print(f"Removed existing file: {tar}")
-        except OSError as e:
-            print(f"Error removing file: {e}")
-
-    # Download the tar file
-    try:
-        print(f"Downloading {tar} from {url}...")
-        urllib.request.urlretrieve(url, tar)
-        print(f"Downloaded {tar}")
-    except Exception as e:
-        print(f"Error downloading the file: {e}")
-
-    # Extract the tar file
-    if os.path.exists(tar):
-        try:
-            with tarfile.open(tar, "r:gz") as tar_ref:
-                tar_ref.extractall(".")
-                print(f"Extracted {tar}")
-        except tarfile.TarError as e:
-            print(f"Error extracting tar file: {e}")
-
-    # Move the extracted files to the specified directory
-    extracted_folder = "cifar-10-batches-py"
+    # Remove leftovers from an interrupted run
     if os.path.exists(extracted_folder):
-        try:
-            if os.path.exists(directory):
-                shutil.rmtree(directory)
-            shutil.move(extracted_folder, directory)
-            print(f"Moved {extracted_folder} to {directory}")
-        except OSError as e:
-            print(f"Error moving files: {e}")
+        shutil.rmtree(extracted_folder)
 
-    # Remove the tar file
-    if os.path.exists(tar):
-        try:
+    for url in CIFAR10_URLS:
+        if os.path.exists(tar):
             os.remove(tar)
-            print(f"Removed tar file: {tar}")
-        except OSError as e:
-            print(f"Error removing tar file: {e}")
+        print(f"Downloading CIFAR-10 (~170 MB) from {url}")
+        try:
+            _download_with_progress(url, tar)
+        except KeyboardInterrupt:
+            if os.path.exists(tar):
+                os.remove(tar)
+            raise
+        except Exception as e:
+            print(f"Download failed: {e}")
+            continue
+        if _md5(tar) == CIFAR10_MD5:
+            break
+        print("The downloaded file is corrupted (checksum mismatch).")
+    else:
+        if os.path.exists(tar):
+            os.remove(tar)
+        raise RuntimeError(
+            "Could not download CIFAR-10. Check your internet connection, or download "
+            f"cifar-10-python.tar.gz manually from {CIFAR10_URLS[-1]} and extract it to {directory}."
+        )
+
+    print("Extracting archive...")
+    with tarfile.open(tar, "r:gz") as tar_ref:
+        tar_ref.extractall(parent)
+    shutil.move(extracted_folder, directory)
+    os.remove(tar)
+    print(f"CIFAR-10 is ready in {directory}")
 
 
 def load_cifar10_bach_file(file: str) -> Tuple[np.ndarray, np.ndarray]:
