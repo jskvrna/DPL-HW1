@@ -103,6 +103,44 @@ class KNNClassifier:
 
         return dists
 
+    def _predict_labels(self, dists: np.ndarray) -> np.ndarray:
+        """Predicts labels based on the distance matrix.
+
+        Args:
+            dists (numpy.ndarray): The distance matrix containing distances between test points and training points.
+
+        Returns:
+            numpy.ndarray: The predicted labels for the test data points.
+        """
+        num_test = dists.shape[0]
+        y_pred = np.zeros(num_test)
+        for i in range(num_test):
+            y_pred[i] = 0
+            # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱ Assignment 1.2 ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #
+            # TODO:                                                             #
+            # Utilize the distance matrix to identify the k nearest neighbors   #
+            # of the ith testing point. Then, retrieve the labels of these      #
+            # neighbors from the 'self.y_train'. After identifying the labels   #
+            # of the k nearest neighbors, determine the most frequent label     #
+            # within the list of labels. Save this label as 'y_pred[i]'.        #
+            # In case of a tie, select the smaller label as the final choice.   #
+            #                                                                   #
+            # Hint: You may find the 'numpy.argsort' and 'numpy.bincount'       #
+            # functions useful.                                                 #
+            # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #
+            # 🌀 INCEPTION 🌀 (Your code begins its journey here. 🚀 Do not delete this line.)
+            #
+            #                    ╔═══════════════════════╗
+            #                    ║                       ║
+            #                    ║       YOUR CODE       ║
+            #                    ║                       ║
+            #                    ╚═══════════════════════╝
+            #
+
+            # 🌀 TERMINATION 🌀 (Your code reaches its end. 🏁 Do not delete this line.)
+
+        return y_pred
+
     def _compute_distances_vectorized(self, X: np.ndarray) -> np.ndarray:
         """Computes the L2 distance between test points and training points (vectorized).
 
@@ -143,41 +181,3 @@ class KNNClassifier:
         # 🌀 TERMINATION 🌀 (Your code reaches its end. 🏁 Do not delete this line.)
 
         return dists
-
-    def _predict_labels(self, dists: np.ndarray) -> np.ndarray:
-        """Predicts labels based on the distance matrix.
-
-        Args:
-            dists (numpy.ndarray): The distance matrix containing distances between test points and training points.
-
-        Returns:
-            numpy.ndarray: The predicted labels for the test data points.
-        """
-        num_test = dists.shape[0]
-        y_pred = np.zeros(num_test)
-        for i in range(num_test):
-            y_pred[i] = 0
-            # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱ Assignment 1.2 ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #
-            # TODO:                                                             #
-            # Utilize the distance matrix to identify the k nearest neighbors   #
-            # of the ith testing point. Then, retrieve the labels of these      #
-            # neighbors from the 'self.y_train'. After identifying the labels   #
-            # of the k nearest neighbors, determine the most frequent label     #
-            # within the list of labels. Save this label as 'y_pred[i]'.        #
-            # In case of a tie, select the smaller label as the final choice.   #
-            #                                                                   #
-            # Hint: You may find the 'numpy.argsort' and 'numpy.bincount'       #
-            # functions useful.                                                 #
-            # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #
-            # 🌀 INCEPTION 🌀 (Your code begins its journey here. 🚀 Do not delete this line.)
-            #
-            #                    ╔═══════════════════════╗
-            #                    ║                       ║
-            #                    ║       YOUR CODE       ║
-            #                    ║                       ║
-            #                    ╚═══════════════════════╝
-            #
-
-            # 🌀 TERMINATION 🌀 (Your code reaches its end. 🏁 Do not delete this line.)
-
-        return y_pred
