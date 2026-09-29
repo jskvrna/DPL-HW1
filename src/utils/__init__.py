@@ -14,5 +14,8 @@ from .plot import (
     plot_training,
     plot_training_runs,
     plot_weights_as_templates,
+    plot_template_comparison,
+    plot_template_matches,
+    plot_transform_robustness,
 )
 from .visualizer import Data2DVisualizer

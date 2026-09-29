@@ -276,34 +276,167 @@ def plot_training_runs(
     plt.show()
 
 
-def plot_weights_as_templates(weights: torch.Tensor, class_labels: list):
-    w = weights.data
-    w = w.reshape(32, 32, 3, 10)
+def _templates_as_images(weights: torch.Tensor) -> np.ndarray:
+    """Turn the weights of shape (3072, C) into C images of shape (32, 32, 3) in [0, 1].
 
-    # w_min, w_max = torch.min(w), torch.max(w)
+    Every template is rescaled on its own, so its lowest weight is black and its
+    highest weight is white.
+    """
+    w = weights.detach().cpu().numpy().T.reshape(-1, 32, 32, 3)
+    w_min = w.min(axis=(1, 2, 3), keepdims=True)
+    w_max = w.max(axis=(1, 2, 3), keepdims=True)
+    return (w - w_min) / (w_max - w_min)
 
-    classes = [
-        "plane",
-        "car",
-        "bird",
-        "cat",
-        "deer",
-        "dog",
-        "frog",
-        "horse",
-        "ship",
-        "truck",
-    ]
-    fig, axes = plt.subplots(2, 5, figsize=(10, 4))
-    for c in range(len(classes)):
-        class_vec = w[:, :, :, c].squeeze()
-        w_min, w_max = torch.min(class_vec), torch.max(class_vec)
-        wimg = 255.0 * (w[:, :, :, c].squeeze() - w_min) / (w_max - w_min)
-        wimg = wimg.type(torch.uint8).numpy()
-        axes.flat[c].imshow(wimg)
-        axes.flat[c].axis("off")
-        axes.flat[c].set_title(classes[c])
 
+def plot_weights_as_templates(weights: torch.Tensor, class_names: List[str]) -> None:
+    """Show every column of the weight matrix as a 32x32 color image.
+
+    Args:
+        weights (torch.Tensor): Weights of a linear classifier of shape (3072, C).
+        class_names (List[str]): The name of each class, indexed by label.
+
+    Returns:
+        None
+    """
+    templates = _templates_as_images(weights)
+
+    fig, axes = plt.subplots(2, len(class_names) // 2, figsize=(10, 4))
+    for ax, template, name in zip(axes.flat, templates, class_names):
+        ax.imshow(template)
+        ax.set_title(name)
+        ax.axis("off")
+
+    plt.show()
+
+
+def plot_template_comparison(weights_by_name: dict, class_names: List[str]) -> None:
+    """Show the templates of several classifiers, one row per classifier.
+
+    Args:
+        weights_by_name (dict): Maps a row title to weights of shape (3072, C).
+        class_names (List[str]): The name of each class, indexed by label.
+
+    Returns:
+        None
+    """
+    num_rows, num_cols = len(weights_by_name), len(class_names)
+    fig, axes = plt.subplots(
+        num_rows, num_cols, figsize=(1.3 * num_cols, 1.45 * num_rows), squeeze=False
+    )
+
+    for row, (name, weights) in enumerate(weights_by_name.items()):
+        for col, template in enumerate(_templates_as_images(weights)):
+            ax = axes[row, col]
+            ax.imshow(template)
+            ax.set_xticks([])
+            ax.set_yticks([])
+            if row == 0:
+                ax.set_title(class_names[col])
+            if col == 0:
+                ax.set_ylabel(name, rotation=0, ha="right", va="center")
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_template_matches(
+    weights: torch.Tensor,
+    scores: torch.Tensor,
+    images: np.ndarray,
+    y_true: np.ndarray,
+    class_names: List[str],
+    num_matches: int = 8,
+) -> None:
+    """For every class, show its template and the images with the highest score for it.
+
+    A green frame marks an image of that class, a red frame an image of another
+    class, whose true class is written below it.
+
+    Args:
+        weights (torch.Tensor): Weights of a linear classifier of shape (3072, C).
+        scores (torch.Tensor): Scores of the images of shape (N, C).
+        images (np.ndarray): The original images of shape (N, 32, 32, 3) with values 0-255.
+        y_true (np.ndarray): The true labels of shape (N,).
+        class_names (List[str]): The name of each class, indexed by label.
+        num_matches (int, optional): Number of images per class. Defaults to 8.
+
+    Returns:
+        None
+    """
+    templates = _templates_as_images(weights)
+    scores = np.asarray(scores)
+    y_true = np.asarray(y_true)
+    num_classes = len(class_names)
+
+    fig, axes = plt.subplots(
+        num_classes, num_matches + 1, figsize=(1.25 * (num_matches + 1), 1.45 * num_classes)
+    )
+
+    for c in range(num_classes):
+        axes[c, 0].imshow(templates[c])
+        axes[c, 0].set_ylabel(class_names[c], rotation=0, ha="right", va="center", fontsize=12)
+
+        best = np.argsort(-scores[:, c])[:num_matches]
+        for ax, i in zip(axes[c, 1:], best):
+            correct = y_true[i] == c
+            ax.imshow(images[i].astype("uint8"))
+            for spine in ax.spines.values():
+                spine.set_edgecolor("#2CA02C" if correct else "#D62728")
+                spine.set_linewidth(3)
+            if not correct:
+                ax.set_xlabel(class_names[y_true[i]], fontsize=9, labelpad=2, color="#D62728")
+
+    for ax in axes.flat:
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+    axes[0, 0].set_title("Template", fontsize=11)
+    axes[0, (num_matches + 1) // 2].set_title("Highest-scoring validation images", fontsize=11)
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_transform_robustness(
+    example_images: dict,
+    zoom_factors: List[float],
+    zoom_accuracies: List[float],
+    flip_accuracy: float,
+) -> None:
+    """Show an example image under every transformation and the accuracy on transformed images.
+
+    Args:
+        example_images (dict): Maps a title to an image of shape (32, 32, 3) with values 0-255.
+        zoom_factors (List[float]): The zoom factors, 1 means no zoom.
+        zoom_accuracies (List[float]): The accuracy for every zoom factor.
+        flip_accuracy (float): The accuracy on horizontally flipped images.
+
+    Returns:
+        None
+    """
+    num_cols = int(np.ceil(len(example_images) / 2))
+    fig = plt.figure(figsize=(11, 4))
+    grid = fig.add_gridspec(2, num_cols + 3, width_ratios=[1] * num_cols + [0.3, 2, 2])
+
+    for k, (title, image) in enumerate(example_images.items()):
+        ax = fig.add_subplot(grid[k // num_cols, k % num_cols])
+        ax.imshow(np.clip(np.asarray(image), 0, 255).astype("uint8"))
+        ax.set_title(title, fontsize=10)
+        ax.axis("off")
+
+    ax = fig.add_subplot(grid[:, num_cols + 1 :])
+    ax.plot(zoom_factors, zoom_accuracies, marker="o", color="#222222", label="Zoomed in")
+    ax.scatter([1], [flip_accuracy], marker="*", s=200, color="#EE7733",
+               zorder=3, label="Flipped left-right")
+    ax.axhline(1 / 10, color="gray", linestyle=":", label="Random guessing")
+    ax.set_xlabel("Zoom factor")
+    ax.set_ylabel("Validation accuracy")
+    ax.set_title("Accuracy on zoomed and flipped images")
+    ax.set_ylim(0, None)
+    ax.set_xticks(zoom_factors, labels=[f"{f:g}x" for f in zoom_factors])
+    ax.grid(True, alpha=0.4)
+    ax.legend(loc="lower left")
+
+    plt.tight_layout()
     plt.show()
 
 
