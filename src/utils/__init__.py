@@ -16,6 +16,7 @@ from .plot import (
     plot_activation_functions,
     plot_weights_as_templates,
     plot_template_comparison,
+    plot_neuron_templates,
     plot_template_matches,
     plot_transform_robustness,
 )

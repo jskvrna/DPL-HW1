@@ -151,7 +151,11 @@ def plot_knn_cross_validation(k_to_metrics: dict, label_names: list = None):
 
 
 def plot_training(
-    loss_history: dict, accuracy_history: dict, ema: bool = False, alpha: float = 0.1
+    loss_history: dict,
+    accuracy_history: dict,
+    ema: bool = False,
+    alpha: float = 0.1,
+    xlabel: str = "Iterations",
 ) -> None:
     """Show the training history of a neural network.
 
@@ -160,6 +164,7 @@ def plot_training(
         accuracy_history (dict): Dictionary containing the training and validation accuracy history.
         ema (bool, optional): Whether to apply exponential moving average to the history. Defaults to False.
         alpha (float, optional): The alpha value for the exponential moving average. Defaults to 0.1.
+        xlabel (str, optional): Label of the x-axis, the unit of the history keys. Defaults to "Iterations".
 
     Returns:
         None
@@ -198,7 +203,7 @@ def plot_training(
         X_loss,
         Y_loss,
         ["Training", "Validation"],
-        "Iterations",
+        xlabel,
         "Loss",
         "Loss History",
     )
@@ -207,7 +212,7 @@ def plot_training(
         X_acc,
         Y_acc,
         ["Training", "Validation"],
-        "Iterations",
+        xlabel,
         "Accuracy",
         "Accuracy History",
     )
@@ -221,7 +226,7 @@ def plot_training(
 
 
 def plot_training_runs(
-    loss_histories: dict, accuracy_histories: dict, title: str = ""
+    loss_histories: dict, accuracy_histories: dict, title: str = "", xlabel: str = "Iterations"
 ) -> None:
     """Compare several training runs: training loss and validation accuracy.
 
@@ -229,6 +234,7 @@ def plot_training_runs(
         loss_histories (dict): Maps a run name to the loss history returned by train().
         accuracy_histories (dict): Maps a run name to the accuracy history returned by train().
         title (str, optional): Title of the whole figure. Defaults to "".
+        xlabel (str, optional): Label of the x-axis, the unit of the history keys. Defaults to "Iterations".
 
     Returns:
         None
@@ -250,19 +256,28 @@ def plot_training_runs(
             list(val_acc.keys()),
             list(val_acc.values()),
             color=color,
-            marker="o",
+            marker="o" if len(val_acc) <= 60 else None,
             markersize=4,
             linewidth=1.5,
             label=name,
         )
 
     ax_loss.set_yscale("log")
-    ax_loss.set_xlabel("Iterations")
+
+    # A run whose loss explodes would squash all other curves: cut the axis at
+    # 10x the typical (median) loss of all runs and let the exploding curve leave the plot
+    losses = np.concatenate([[float(v) for v in h["train"].values()] for h in loss_histories.values()])
+    losses = losses[np.isfinite(losses)]
+    typical = np.median(losses)
+    if losses.max() > 100 * typical:
+        ax_loss.set_ylim(0.8 * losses.min(), 10 * typical)
+
+    ax_loss.set_xlabel(xlabel)
     ax_loss.set_ylabel("Training loss (log scale)")
     ax_loss.set_title("Training Loss")
     ax_loss.grid(True, which="both", alpha=0.4)
 
-    ax_acc.set_xlabel("Iterations")
+    ax_acc.set_xlabel(xlabel)
     ax_acc.set_ylabel("Accuracy")
     ax_acc.set_title("Validation Accuracy")
     ax_acc.grid(True, alpha=0.4)
@@ -367,6 +382,42 @@ def plot_template_comparison(weights_by_name: dict, class_names: List[str]) -> N
                 ax.set_ylabel(name, rotation=0, ha="right", va="center")
 
     plt.tight_layout()
+    plt.show()
+
+
+def plot_neuron_templates(models: dict, num_templates: int = 20) -> None:
+    """Show the first-layer weights of MLPs as 32x32 color images.
+
+    Every neuron of the first hidden layer has one weight per input pixel, so its
+    weights form an image, like the templates of a linear classifier. For every
+    model only the neurons with the largest outgoing weights (the ones the second
+    layer relies on the most) are shown, two rows per model.
+
+    Args:
+        models (dict): Maps a title to a trained MLPClassifier with params["W1"] of
+            shape (3072, H1) and params["W2"] of shape (H1, H2).
+        num_templates (int, optional): Number of neurons shown per model. Defaults to 20.
+
+    Returns:
+        None
+    """
+    num_cols = (num_templates + 1) // 2
+    fig = plt.figure(figsize=(0.95 * num_cols, 2.3 * len(models)))
+    subfigures = np.atleast_1d(fig.subfigures(len(models), 1))
+
+    for subfigure, (title, model) in zip(subfigures, models.items()):
+        W1 = model.params["W1"].detach()
+        importance = torch.linalg.norm(model.params["W2"].detach(), dim=1)
+        neurons = torch.argsort(importance, descending=True)[:num_templates]
+        templates = _templates_as_images(W1[:, neurons])
+
+        subfigure.suptitle(title, x=0.02, ha="left", fontsize=12)
+        axes = subfigure.subplots(2, num_cols, gridspec_kw=dict(wspace=0.08, hspace=0.08))
+        for i, ax in enumerate(axes.flat):
+            ax.axis("off")
+            if i < len(templates):
+                ax.imshow(templates[i])
+
     plt.show()
 
 
