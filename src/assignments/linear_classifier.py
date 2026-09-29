@@ -40,6 +40,7 @@ class LinearClassifier:
         y_train: torch.Tensor,
         X_val: torch.Tensor,
         y_val: torch.Tensor,
+        verbose: bool = True,
     ) -> tuple:
 
         # Initialize the best validation accuracy and the best parameters
@@ -51,7 +52,7 @@ class LinearClassifier:
         acc_history = dict(train=dict(), val=dict())
 
         # Training loop
-        for i in tqdm(range(self.num_iters), desc="Training"):
+        for i in tqdm(range(self.num_iters), desc="Training", disable=not verbose):
 
             # Select a random batch of data
             batch_indices = torch.randint(0, X_train.shape[0], (self.batch_size,))
@@ -109,7 +110,20 @@ class LinearClassifier:
 
         # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱ Assignment 3.1 ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #
         # TODO:                                                             #
-        # Implement computation of the logits of the model.                 #
+        # Compute the logits (class scores) of the linear classifier.       #
+        # For a single sample x (a row vector of D features) the scores are #
+        #     s = x W + b                                                   #
+        # Compute them for the whole batch X at once, without a loop.       #
+        #                                                                   #
+        # The parameters are PyTorch tensors (torch.nn.Parameter):          #
+        #     self.params["W"]  weights of shape (D, C)                     #
+        #     self.params["b"]  biases of shape (C,)                        #
+        # where D = number of features and C = number of classes.           #
+        #                                                                   #
+        # HINT 1: `@` is matrix multiplication in PyTorch:                  #
+        #         (N, D) @ (D, C) -> (N, C)                                 #
+        # HINT 2: Adding a tensor of shape (C,) to a tensor of shape (N, C) #
+        #         adds it to every row (broadcasting).                      #
         #                                                                   #
         # Good luck!                                                        #
         # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #
@@ -138,7 +152,17 @@ class LinearClassifier:
 
         # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱ Assignment 3.2 ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #
         # TODO:                                                             #
-        # Implement the prediction function of the model.                   #
+        # Predict one label per sample: the class with the highest logit.   #
+        #                                                                   #
+        # Shapes: X is (N, D), the logits from self.forward(X) are (N, C)   #
+        # and y_pred must be a PyTorch tensor of shape (N,).                #
+        #                                                                   #
+        # HINT 1: Use self.forward to get the logits.                       #
+        # HINT 2: torch.argmax(tensor, dim=...) returns the index of the    #
+        #         largest value along one dimension. Which dimension        #
+        #         holds the classes?                                        #
+        # HINT 3: Predictions need no gradients, so you can wrap the code   #
+        #         in `with torch.no_grad():`.                               #
         #                                                                   #
         # Good luck!                                                        #
         # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #
@@ -170,11 +194,22 @@ class LinearClassifier:
 
         # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱ Assignment 3.3 ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #
         # TODO:                                                             #
-        # Implement the loss function of the model. The loss function       #
-        # should be the cross-entropy loss with L2 regularization.          #
+        # Compute the cross-entropy loss with L2 regularization:            #
+        #     loss = CE(logits, y) + reg * (sum(W ** 2) + sum(b ** 2))      #
+        # where CE is the mean cross-entropy over the batch and reg is      #
+        # self.reg. Both parameters are regularized:                        #
+        #     W = self.params["W"]  of shape (D, C)                         #
+        #     b = self.params["b"]  of shape (C,)                           #
         #                                                                   #
-        # HINT 1: You may find torch.nn.CrossEntropyLoss() useful.          #
-        # HINT 2: Use the self.reg attribute for the regularization term.   #
+        # Shapes: X is (N, D), y is (N,) with integer labels 0 ... C-1.     #
+        #                                                                   #
+        # HINT 1: torch.nn.CrossEntropyLoss()(logits, y) takes the raw      #
+        #         logits of shape (N, C), not probabilities. It applies     #
+        #         the softmax itself and averages over the batch.           #
+        # HINT 2: torch.sum(W ** 2) is the sum of squares of all entries.   #
+        # HINT 3: Build the loss from PyTorch operations only (no numpy,    #
+        #         no .item()), so that loss.backward() can compute          #
+        #         the gradients.                                            #
         #                                                                   #
         # Good luck!                                                        #
         # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #
@@ -194,12 +229,26 @@ class LinearClassifier:
     def _update_weights(self):
         """Update the weights of the model using the gradient descent."""
 
+        W = self.params["W"]  # weights of shape (D, C)
+        b = self.params["b"]  # biases of shape (C,)
+
         # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱ Assignment 3.4 ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #
         # TODO:                                                             #
-        # Implement the weight update step using the gradient descent.      #
+        # Take one gradient-descent step for both parameters:               #
+        #     W = W - learning_rate * dL/dW                                 #
+        #     b = b - learning_rate * dL/db                                 #
         #                                                                   #
-        # HINT: Use the self.learning_rate attribute for the learning rate  #
-        # and update the .data attribute of the model parameters.           #
+        # loss.backward() has already computed the gradients and stored     #
+        # them next to the parameters:                                      #
+        #     W.grad  has the same shape as W, (D, C)                       #
+        #     b.grad  has the same shape as b, (C,)                         #
+        #                                                                   #
+        # HINT 1: Use self.learning_rate for the learning rate.             #
+        # HINT 2: Write the new values into `.data`, for example            #
+        #             W.data = W.data - ...                                 #
+        #         Writing `W = W - ...` would only create a new local       #
+        #         variable and leave the model unchanged. `.data` also      #
+        #         keeps the update out of the autograd graph.               #
         #                                                                   #
         # Good luck!                                                        #
         # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #

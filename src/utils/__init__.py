@@ -12,6 +12,7 @@ from .plot import (
     plot_confusion_matrix,
     plot_knn_cross_validation,
     plot_training,
+    plot_training_runs,
     plot_weights_as_templates,
 )
 from .visualizer import Data2DVisualizer

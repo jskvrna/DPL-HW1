@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 
 from .general import exponential_moving_average
 
@@ -211,6 +212,67 @@ def plot_training(
         "Accuracy History",
     )
 
+    # Let matplotlib choose the iteration ticks and limits
+    for ax in axes:
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True, steps=[1, 2, 5, 10]))
+        ax.autoscale(enable=True, axis="x")
+
+    plt.show()
+
+
+def plot_training_runs(
+    loss_histories: dict, accuracy_histories: dict, title: str = ""
+) -> None:
+    """Compare several training runs: training loss and validation accuracy.
+
+    Args:
+        loss_histories (dict): Maps a run name to the loss history returned by train().
+        accuracy_histories (dict): Maps a run name to the accuracy history returned by train().
+        title (str, optional): Title of the whole figure. Defaults to "".
+
+    Returns:
+        None
+    """
+    fig, (ax_loss, ax_acc) = plt.subplots(1, 2, figsize=(12, 4))
+    colors = plt.cm.viridis(np.linspace(0, 0.9, len(loss_histories)))
+
+    for color, name in zip(colors, loss_histories):
+        train_loss = loss_histories[name]["train"]
+        val_acc = accuracy_histories[name]["val"]
+        ax_loss.plot(
+            list(train_loss.keys()),
+            [float(v) for v in train_loss.values()],
+            color=color,
+            linewidth=1.2,
+            label=name,
+        )
+        ax_acc.plot(
+            list(val_acc.keys()),
+            list(val_acc.values()),
+            color=color,
+            marker="o",
+            markersize=4,
+            linewidth=1.5,
+            label=name,
+        )
+
+    ax_loss.set_yscale("log")
+    ax_loss.set_xlabel("Iterations")
+    ax_loss.set_ylabel("Training loss (log scale)")
+    ax_loss.set_title("Training Loss")
+    ax_loss.grid(True, which="both", alpha=0.4)
+
+    ax_acc.set_xlabel("Iterations")
+    ax_acc.set_ylabel("Accuracy")
+    ax_acc.set_title("Validation Accuracy")
+    ax_acc.grid(True, alpha=0.4)
+
+    # One legend for both panels, to the right of the figure
+    ax_acc.legend(loc="center left", bbox_to_anchor=(1.02, 0.5))
+
+    if title:
+        fig.suptitle(title, fontsize=14)
+    plt.tight_layout()
     plt.show()
 
 

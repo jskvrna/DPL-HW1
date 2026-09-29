@@ -156,7 +156,9 @@ class Data2DVisualizer:
         plt.tight_layout()
         plt.show()
 
-    def show_decision_boundaries(self, classifier, h: float = 0.001) -> None:
+    def show_decision_boundaries(
+        self, classifier, h: float = 0.001, transform=None
+    ) -> None:
         """Display decision boundaries for a classifier.
 
         This function plots decision boundaries for a given classifier along with the dataset splits.
@@ -164,6 +166,7 @@ class Data2DVisualizer:
         Args:
             classifier: The trained classifier for which decision boundaries will be plotted.
             h (float, optional): Step size for meshgrid. Smaller values create finer boundaries. Default is 0.001.
+            transform (callable, optional): Maps the 2D points to the features the classifier expects.
 
         Returns:
             None
@@ -173,13 +176,41 @@ class Data2DVisualizer:
         fig.suptitle("Decision Boundaries", fontsize=30)
 
         self._plot_data(self.X_train, self.y_train, axes[0], title="Training")
-        self._plot_decision_boundaries(classifier, h, axes[0])
+        self._plot_decision_boundaries(classifier, h, axes[0], transform=transform)
 
         self._plot_data(self.X_val, self.y_val, axes[1], title="Validation")
-        self._plot_decision_boundaries(classifier, h, axes[1])
+        self._plot_decision_boundaries(classifier, h, axes[1], transform=transform)
 
         self._plot_data(self.X_test, self.y_test, axes[2], title="Test")
-        self._plot_decision_boundaries(classifier, h, axes[2])
+        self._plot_decision_boundaries(classifier, h, axes[2], transform=transform)
+
+        plt.tight_layout()
+        plt.show()
+
+    def compare_decision_boundaries(
+        self, classifiers: dict, h: float = 0.01, confidence: bool = False
+    ) -> None:
+        """Show the decision boundaries of several classifiers side by side.
+
+        Every panel shows the training data and the regions of one classifier.
+
+        Args:
+            classifiers (dict): Maps a panel title to a trained classifier.
+            h (float, optional): Step size for meshgrid. Defaults to 0.01.
+            confidence (bool, optional): Fade each region where the classifier is
+                unsure (low softmax probability). Only for PyTorch models. Defaults to False.
+
+        Returns:
+            None
+        """
+
+        n = len(classifiers)
+        fig, axes = plt.subplots(1, n, figsize=(n * 4.5, 4.5), squeeze=False)
+
+        for ax, (title, classifier) in zip(axes[0], classifiers.items()):
+            self._plot_data(self.X_train, self.y_train, ax, title=title)
+            ax.title.set_fontsize(14)
+            self._plot_decision_boundaries(classifier, h, ax, confidence=confidence)
 
         plt.tight_layout()
         plt.show()
@@ -224,66 +255,57 @@ class Data2DVisualizer:
         fig.savefig("knn_principle.png", dpi=70, bbox_inches="tight", pad_inches=0.1)
 
     def show_linear_weights(self, classifier) -> None:
-        """Illustrate the linear classifier weights with a plot.
+        """Draw the weight vector of every class on top of the decision regions.
 
-        This function creates a plot demonstrating the linear classifier weights.
+        Only differences between the class scores matter, so every arrow shows
+        w_c minus the mean of all weight vectors. The arrows start at the mean of
+        the training data and keep their relative lengths.
+
+        Args:
+            classifier: A trained linear classifier with params["W"] of shape (2, C).
 
         Returns:
             None
         """
 
         fig, ax = plt.subplots(figsize=(6, 6))
+        self._plot_data(self.X_train, self.y_train, ax, title="Class weight vectors")
         self._plot_decision_boundaries(classifier, 0.01, ax)
 
-        # Set the axis limits based on the maximum of x and y limits (needed for quiver plot)
-        min_lim = max(self.x_lim[0], self.y_lim[0])
-        max_lim = min(self.x_lim[1], self.y_lim[1])
+        weights = classifier.params["W"].detach().numpy().T
+        directions = weights - weights.mean(axis=0)
 
-        ax.set_xlim(min_lim, max_lim)
-        ax.set_ylim(min_lim, max_lim)
+        # Scale the arrows so the longest one covers 35 % of the plot width
+        scale = 0.35 * (self.x_lim[1] - self.x_lim[0]) / np.max(np.linalg.norm(directions, axis=1))
+        origin = np.asarray(self.X_train, dtype=float).mean(axis=0)
 
-        weights = classifier.W.data.T
-        biases = classifier.b.data
-
-        xx = np.linspace(min_lim, max_lim, 100)
-
-        for c in range(classifier.num_classes):
-            w = weights[c]
-            b = biases[c]
-
-            # Calculate the line equation using original weights
-            yy = -w[0] / w[1] * xx - b / w[1]
-            ax.plot(xx, yy, color=self.colors[c], linewidth=2, zorder=100)
-            ax.plot(xx, yy, color="black", linewidth=4, zorder=99)
-
-            # Calculate the direction vector for quiver plot
-            v = np.linalg.pinv(w[np.newaxis, :]) * (-b)
-            w_normalized = w / np.linalg.norm(w)
-            ax.quiver(
-                v[0],
-                v[1],
-                w_normalized[0],
-                w_normalized[1],
-                color=self.colors[c],
-                zorder=1000,
-                scale=2,
-                scale_units="xy",
-                edgecolor="black",
-                linewidth=1.5,
+        for c, direction in enumerate(directions):
+            ax.annotate(
+                "",
+                xy=origin + scale * direction,
+                xytext=origin,
+                arrowprops=dict(
+                    arrowstyle="-|>,head_width=0.5,head_length=1",
+                    linewidth=3,
+                    facecolor=self.colors[c],
+                    edgecolor="black",
+                    shrinkA=0,
+                    shrinkB=0,
+                ),
+                zorder=20,
+            )
+            ax.text(
+                *(origin + 1.12 * scale * direction),
+                f"$w_{c}$",
+                fontsize=16,
+                ha="center",
+                va="center",
+                zorder=21,
+                bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8),
             )
 
-            # Add dot at the end of the vector
-            ax.scatter(
-                v[0],
-                v[1],
-                color=self.colors[c],
-                s=25,
-                linewidth=1.5,
-                zorder=1000,
-                edgecolor="black",
-            )
-
-        ax.axis("off")
+        ax.scatter(*origin, color="white", edgecolor="black", s=60, zorder=22)
+        plt.show()
 
     def show_decision_functions(self, classifier) -> None:
         """Illustrate the decision functions with a plot.
@@ -295,8 +317,9 @@ class Data2DVisualizer:
         Returns:
         None
         """
-        x_rng = np.linspace(self.x_lim[0], self.x_lim[1], 100)
-        y_rng = np.linspace(self.y_lim[0], self.y_lim[1], 100)
+        # A 60 x 60 grid rounded to 3 decimals keeps the saved notebook small
+        x_rng = np.linspace(self.x_lim[0], self.x_lim[1], 60).round(3)
+        y_rng = np.linspace(self.y_lim[0], self.y_lim[1], 60).round(3)
         xx, yy = np.meshgrid(x_rng, y_rng)
         X = np.column_stack((xx.ravel(), yy.ravel()))
         X = torch.from_numpy(X).float()
@@ -309,13 +332,13 @@ class Data2DVisualizer:
 
         # Plot decision surfaces
         for c in range(self.num_classes):
-            zz = logits[:, c].reshape(xx.shape)
+            zz = logits[:, c].reshape(xx.shape).round(3)
             color = f"rgb{tuple(int(val * 255) for val in self.colors[c])}"
 
             fig.add_trace(
                 go.Surface(
-                    x=xx,
-                    y=yy,
+                    x=x_rng,
+                    y=y_rng,
                     z=zz,
                     colorscale=[[0, color], [1, color]],
                     opacity=1,
@@ -403,7 +426,14 @@ class Data2DVisualizer:
         ax.scatter(features[:, 0], features[:, 1], **scatter_args)
         ax.set_title(title, fontsize=20)
 
-    def _plot_decision_boundaries(self, classifier, h: float, ax: plt.Axes) -> None:
+    def _plot_decision_boundaries(
+        self,
+        classifier,
+        h: float,
+        ax: plt.Axes,
+        transform=None,
+        confidence: bool = False,
+    ) -> None:
         """Plot decision boundaries.
 
         This internal function is used to plot decision boundaries for a given classifier.
@@ -412,6 +442,8 @@ class Data2DVisualizer:
             classifier: The trained classifier for which decision boundaries will be plotted.
             h (float): Step size for meshgrid. Smaller values create finer boundaries.
             ax (matplotlib.pyplot.Axes): The axis for plotting.
+            transform (callable, optional): Maps the 2D points to the features the classifier expects.
+            confidence (bool, optional): Fade the regions where the softmax probability is low.
 
         Returns:
             None
@@ -423,12 +455,39 @@ class Data2DVisualizer:
 
         mesh_matrix = np.c_[xx.ravel(), yy.ravel()]
 
-        if isinstance(self.X_train, torch.Tensor):
+        # PyTorch models (with a forward method) take tensors, k-NN takes numpy arrays
+        if hasattr(classifier, "forward"):
             mesh_matrix = torch.from_numpy(mesh_matrix).float()
-            mesh_predictions = classifier.predict(mesh_matrix)
-            mesh_predictions = mesh_predictions.detach().numpy()
+            if transform is not None:
+                mesh_matrix = transform(mesh_matrix)
+            with torch.no_grad():
+                mesh_predictions = classifier.predict(mesh_matrix).numpy()
+                if confidence:
+                    probs = torch.softmax(classifier.forward(mesh_matrix), dim=1)
+                    certainty = probs.max(dim=1).values.numpy()
         else:
+            if transform is not None:
+                mesh_matrix = transform(mesh_matrix)
             mesh_predictions = classifier.predict(mesh_matrix)
 
         mesh_predictions = mesh_predictions.reshape(xx.shape)
-        ax.pcolormesh(xx, yy, mesh_predictions, alpha=0.4, cmap=self.color_map)
+
+        if not confidence:
+            ax.pcolormesh(xx, yy, mesh_predictions, alpha=0.4, cmap=self.color_map)
+            return
+
+        # Opacity grows from 0.1 (all classes equally likely) to 0.6 (certain),
+        # so the regions stay visible even for a very unsure classifier
+        chance = 1 / self.num_classes
+        opacity = 0.1 + 0.5 * np.clip((certainty - chance) / (1 - chance), 0, 1)
+        image = self.color_map(mesh_predictions.ravel().astype(int))
+        image[:, 3] = opacity.ravel()
+        ax.imshow(
+            image.reshape(*xx.shape, 4),
+            origin="lower",
+            extent=(x[0], x[-1], y[0], y[-1]),
+            aspect="auto",
+            interpolation="nearest",
+        )
+        ax.set_xlim(self.x_lim)
+        ax.set_ylim(self.y_lim)
