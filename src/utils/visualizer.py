@@ -157,7 +157,7 @@ class Data2DVisualizer:
         plt.show()
 
     def show_decision_boundaries(
-        self, classifier, h: float = 0.001, transform=None
+        self, classifier, h: float = 0.001, transform=None, show_test: bool = True
     ) -> None:
         """Display decision boundaries for a classifier.
 
@@ -167,22 +167,25 @@ class Data2DVisualizer:
             classifier: The trained classifier for which decision boundaries will be plotted.
             h (float, optional): Step size for meshgrid. Smaller values create finer boundaries. Default is 0.001.
             transform (callable, optional): Maps the 2D points to the features the classifier expects.
+            show_test (bool, optional): Also show the test split. Defaults to True.
 
         Returns:
             None
         """
 
-        fig, axes = plt.subplots(1, self.num_splits, figsize=(self.num_splits * 6, 6))
+        splits = [
+            ("Training", self.X_train, self.y_train),
+            ("Validation", self.X_val, self.y_val),
+        ]
+        if show_test:
+            splits.append(("Test", self.X_test, self.y_test))
+
+        fig, axes = plt.subplots(1, len(splits), figsize=(len(splits) * 6, 6))
         fig.suptitle("Decision Boundaries", fontsize=30)
 
-        self._plot_data(self.X_train, self.y_train, axes[0], title="Training")
-        self._plot_decision_boundaries(classifier, h, axes[0], transform=transform)
-
-        self._plot_data(self.X_val, self.y_val, axes[1], title="Validation")
-        self._plot_decision_boundaries(classifier, h, axes[1], transform=transform)
-
-        self._plot_data(self.X_test, self.y_test, axes[2], title="Test")
-        self._plot_decision_boundaries(classifier, h, axes[2], transform=transform)
+        for ax, (title, features, labels) in zip(axes, splits):
+            self._plot_data(features, labels, ax, title=title)
+            self._plot_decision_boundaries(classifier, h, ax, transform=transform)
 
         plt.tight_layout()
         plt.show()
@@ -387,6 +390,223 @@ class Data2DVisualizer:
         )
 
         fig.show()
+
+    def show_hidden_features(self, classifier) -> None:
+        """Show where the training points end up after every layer of an MLP.
+
+        The first panel is the input with the decision regions of the whole
+        network. Every other panel shows the output of one hidden layer: directly
+        if the layer has 2 neurons, otherwise projected to 2D with PCA. The last
+        panel also shows the regions of the output layer, which is a linear
+        classifier working on the features of the last hidden layer.
+
+        The points are colored by class; pale points lie near the center of the
+        spiral, strong points near its outer end.
+
+        Args:
+            classifier: A trained MLPClassifier.
+
+        Returns:
+            None
+        """
+
+        X = torch.as_tensor(self.X_train, dtype=torch.float)
+        hidden = self._layer_outputs(classifier, X)[:-1]
+        colors = self._radius_shaded_colors()
+
+        n = len(hidden) + 1
+        fig, axes = plt.subplots(1, n, figsize=(n * 5, 5))
+
+        ax = axes[0]
+        self._plot_decision_boundaries(classifier, 0.01, ax)
+        ax.scatter(X[:, 0], X[:, 1], c=colors, s=25, linewidths=0.4, edgecolors="black", zorder=10)
+        ax.set_xlim(self.x_lim)
+        ax.set_ylim(self.y_lim)
+        ax.set_title(f"Input ({X.shape[1]} features)", fontsize=14)
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+        for layer, (ax, features) in enumerate(zip(axes[1:], hidden), start=1):
+            self._plot_hidden_layer(classifier, features, layer, layer == len(hidden), colors, ax)
+
+        plt.tight_layout()
+        plt.show()
+
+    def compare_hidden_features(self, classifiers: dict) -> None:
+        """Show the last hidden layer of several MLPs side by side.
+
+        Args:
+            classifiers (dict): Maps a panel title to a trained MLPClassifier.
+
+        Returns:
+            None
+        """
+
+        X = torch.as_tensor(self.X_train, dtype=torch.float)
+        colors = self._radius_shaded_colors()
+
+        n = len(classifiers)
+        fig, axes = plt.subplots(1, n, figsize=(n * 5, 5), squeeze=False)
+
+        for ax, (title, classifier) in zip(axes[0], classifiers.items()):
+            hidden = self._layer_outputs(classifier, X)[:-1]
+            self._plot_hidden_layer(classifier, hidden[-1], len(hidden), True, colors, ax)
+            ax.set_title(f"{title}: hidden layer {len(hidden)}", fontsize=14)
+
+        plt.tight_layout()
+        plt.show()
+
+    def show_neuron_activations(self, classifier, num_neurons: int = 4) -> None:
+        """Show what single neurons of an MLP compute, as images over the input plane.
+
+        Every row is one layer. Bright means a large value of the neuron. From the
+        first hidden layer only the neurons with the largest outgoing weights are
+        shown. The last row shows the softmax probability of every class.
+
+        Args:
+            classifier: A trained MLPClassifier.
+            num_neurons (int, optional): Maximum number of neurons per layer. Defaults to 4.
+
+        Returns:
+            None
+        """
+
+        x = np.linspace(self.x_lim[0], self.x_lim[1], 200)
+        y = np.linspace(self.y_lim[0], self.y_lim[1], 200)
+        xx, yy = np.meshgrid(x, y)
+        grid = torch.from_numpy(np.c_[xx.ravel(), yy.ravel()]).float()
+
+        outputs = self._layer_outputs(classifier, grid)
+        outputs[-1] = torch.softmax(outputs[-1], dim=1)
+        num_layers = len(outputs)
+        num_cols = max(num_neurons, self.num_classes)
+
+        fig, axes = plt.subplots(num_layers, num_cols, figsize=(num_cols * 3, num_layers * 3), squeeze=False)
+
+        for layer, values in enumerate(outputs, start=1):
+            values = values.numpy()
+            is_output = layer == num_layers
+
+            if is_output:
+                neurons = list(range(values.shape[1]))
+            elif values.shape[1] <= num_neurons:
+                neurons = list(range(values.shape[1]))
+            else:
+                # The neurons the next layer listens to the most
+                W_next = classifier.params[f"W{layer + 1}"].detach()
+                importance = torch.linalg.norm(W_next, dim=1)
+                neurons = sorted(torch.argsort(importance, descending=True)[:num_neurons].tolist())
+
+            for col, ax in enumerate(axes[layer - 1]):
+                ax.set_xticks([])
+                ax.set_yticks([])
+                if col >= len(neurons):
+                    ax.axis("off")
+                    continue
+
+                neuron = neurons[col]
+                image = values[:, neuron].reshape(xx.shape)
+                ax.imshow(
+                    image,
+                    origin="lower",
+                    extent=(x[0], x[-1], y[0], y[-1]),
+                    aspect="auto",
+                    cmap="viridis",
+                    vmin=0 if is_output else None,
+                    vmax=1 if is_output else None,
+                )
+                ax.scatter(
+                    self.X_train[:, 0],
+                    self.X_train[:, 1],
+                    c=self.y_train,
+                    cmap=self.color_map,
+                    s=4,
+                    alpha=0.5,
+                    linewidths=0,
+                )
+                if is_output:
+                    ax.set_title(f"Output: p(class {neuron})", fontsize=12)
+                else:
+                    ax.set_title(f"Layer {layer}, neuron {neuron + 1}", fontsize=12)
+
+        plt.tight_layout()
+        plt.show()
+
+    def _plot_hidden_layer(
+        self, classifier, features: torch.Tensor, layer: int, is_last: bool, colors: np.ndarray, ax: plt.Axes
+    ) -> None:
+        """Scatter the features of one hidden layer, with the output regions if it is the last one."""
+
+        size = features.shape[1]
+        if size == 2:
+            points = features.numpy()
+            ax.set_title(f"Hidden layer {layer} ({size} neurons)", fontsize=14)
+            ax.set_xlabel("neuron 1")
+            ax.set_ylabel("neuron 2")
+        else:
+            # PCA: project onto the two directions with the largest spread
+            centered = features - features.mean(dim=0)
+            _, _, directions = torch.linalg.svd(centered, full_matrices=False)
+            points = (centered @ directions[:2].T).numpy()
+            ax.set_title(f"Hidden layer {layer} ({size} neurons, PCA to 2D)", fontsize=14)
+            ax.set_xticks([])
+            ax.set_yticks([])
+
+        low, high = points.min(axis=0), points.max(axis=0)
+        pad = 0.08 * (high - low) + 1e-6
+        ax.set_xlim(low[0] - pad[0], high[0] + pad[0])
+        ax.set_ylim(low[1] - pad[1], high[1] + pad[1])
+
+        if is_last and size == 2:
+            self._plot_output_layer_regions(classifier, ax)
+
+        ax.scatter(points[:, 0], points[:, 1], c=colors, s=25, linewidths=0.4, edgecolors="black", zorder=10)
+
+    def _layer_outputs(self, classifier, X: torch.Tensor) -> list:
+        """Run an MLP layer by layer and return the output of every layer.
+
+        Uses the parameters W1, b1, W2, b2, ... of the classifier and applies
+        the activation after every layer except the last one.
+
+        Returns:
+            list: The hidden features of every hidden layer, followed by the logits.
+        """
+
+        num_layers = sum(1 for name in classifier.params if name.startswith("W"))
+        outputs = []
+        with torch.no_grad():
+            h = X
+            for layer in range(1, num_layers + 1):
+                h = h @ classifier.params[f"W{layer}"] + classifier.params[f"b{layer}"]
+                if layer < num_layers:
+                    h = classifier.activation_func(h)
+                outputs.append(h)
+        return outputs
+
+    def _plot_output_layer_regions(self, classifier, ax: plt.Axes) -> None:
+        """Color the current axis by the prediction of the output layer alone."""
+
+        num_layers = sum(1 for name in classifier.params if name.startswith("W"))
+        W = classifier.params[f"W{num_layers}"].detach()
+        b = classifier.params[f"b{num_layers}"].detach()
+
+        x = np.linspace(*ax.get_xlim(), 300)
+        y = np.linspace(*ax.get_ylim(), 300)
+        xx, yy = np.meshgrid(x, y)
+        grid = torch.from_numpy(np.c_[xx.ravel(), yy.ravel()]).float()
+        predictions = torch.argmax(grid @ W + b, dim=1).numpy().reshape(xx.shape)
+
+        ax.pcolormesh(xx, yy, predictions, alpha=0.4, cmap=self.color_map, vmin=0, vmax=self.num_classes - 1)
+
+    def _radius_shaded_colors(self) -> np.ndarray:
+        """Class colors of the training points, pale near the center, strong far from it."""
+
+        X = np.asarray(self.X_train, dtype=float)
+        radius = np.linalg.norm(X - X.mean(axis=0), axis=1)
+        strength = 0.15 + 0.85 * (radius - radius.min()) / (radius.max() - radius.min())
+
+        base = self.color_map(np.asarray(self.y_train, dtype=int))[:, :3]
+        return strength[:, None] * base + (1 - strength[:, None]) * np.ones(3)
 
     def _plot_data(
         self,

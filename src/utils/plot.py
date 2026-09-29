@@ -276,6 +276,37 @@ def plot_training_runs(
     plt.show()
 
 
+def plot_activation_functions() -> None:
+    """Plot ReLU, tanh and sigmoid (left) and their derivatives (right)."""
+    x = torch.linspace(-5, 5, 501, requires_grad=True)
+    functions = {
+        "ReLU": torch.relu,
+        "tanh": torch.tanh,
+        "sigmoid": torch.sigmoid,
+    }
+
+    fig, (ax_f, ax_d) = plt.subplots(1, 2, figsize=(12, 4))
+    for name, function in functions.items():
+        y = function(x)
+        (slope,) = torch.autograd.grad(y.sum(), x)
+        ax_f.plot(x.detach(), y.detach(), linewidth=2, label=name)
+        ax_d.plot(x.detach(), slope, linewidth=2, label=name)
+
+    ax_f.set_title("Activation function f(x)")
+    ax_f.set_ylim(-1.5, 3)
+    ax_d.set_title("Derivative f'(x)")
+    ax_d.set_ylim(-0.1, 1.1)
+    for ax in (ax_f, ax_d):
+        ax.axhline(0, color="black", linewidth=0.8)
+        ax.axvline(0, color="black", linewidth=0.8)
+        ax.set_xlabel("x")
+        ax.grid(True, alpha=0.4)
+        ax.legend()
+
+    plt.tight_layout()
+    plt.show()
+
+
 def _templates_as_images(weights: torch.Tensor) -> np.ndarray:
     """Turn the weights of shape (3072, C) into C images of shape (32, 32, 3) in [0, 1].
 

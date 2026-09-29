@@ -54,6 +54,9 @@ class MLPClassifier:
             self.activation_func = nn.Sigmoid()
         elif activation == "tanh":
             self.activation_func = nn.Tanh()
+        elif activation == "identity":
+            # No non-linearity at all, f(x) = x
+            self.activation_func = nn.Identity()
 
     def train(
         self,
@@ -61,6 +64,7 @@ class MLPClassifier:
         y_train: torch.Tensor,
         X_val: torch.Tensor,
         y_val: torch.Tensor,
+        verbose: bool = True,
     ) -> tuple:
 
         # Initialize the best validation accuracy and the best parameters
@@ -72,7 +76,7 @@ class MLPClassifier:
         acc_history = dict(train=dict(), val=dict())
 
         # Training loop
-        for i in tqdm(range(self.num_iters), desc="Training"):
+        for i in tqdm(range(self.num_iters), desc="Training", disable=not verbose):
 
             # Select a random batch of data
             batch_indices = torch.randint(0, X_train.shape[0], (self.batch_size,))
@@ -131,7 +135,34 @@ class MLPClassifier:
 
         # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱ Assignment 4.1 ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #
         # TODO:                                                             #
-        # Implement computation of the logits of the model.                 #
+        # Compute the logits (class scores) of the network with two hidden  #
+        # layers:                                                           #
+        #     h1     = f(X  @ W1 + b1)                                      #
+        #     h2     = f(h1 @ W2 + b2)                                      #
+        #     logits =    h2 @ W3 + b3                                      #
+        # where f is the activation function self.activation_func (ReLU,    #
+        # sigmoid or tanh). Compute it for the whole batch X at once.       #
+        #                                                                   #
+        # The parameters are PyTorch tensors (torch.nn.Parameter):          #
+        #     self.params["W1"]  weights of shape (D, H1)                   #
+        #     self.params["b1"]  biases of shape (H1,)                      #
+        #     self.params["W2"]  weights of shape (H1, H2)                  #
+        #     self.params["b2"]  biases of shape (H2,)                      #
+        #     self.params["W3"]  weights of shape (H2, C)                   #
+        #     self.params["b3"]  biases of shape (C,)                       #
+        # where D = number of features, H1 and H2 = sizes of the two        #
+        # hidden layers and C = number of classes.                          #
+        #                                                                   #
+        # The shapes along the way:                                         #
+        #     X (N, D) -> h1 (N, H1) -> h2 (N, H2) -> logits (N, C)         #
+        #                                                                   #
+        # HINT 1: Every layer is the linear classifier from Assignment 3.1: #
+        #         `@` is matrix multiplication, the bias is broadcast.      #
+        # HINT 2: self.activation_func is a function, call it as            #
+        #         self.activation_func(tensor). It is applied to every      #
+        #         element separately, so the shape stays the same.          #
+        # HINT 3: No activation after the last layer. The loss expects      #
+        #         the raw scores (logits).                                  #
         #                                                                   #
         # Good luck!                                                        #
         # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #
@@ -160,7 +191,18 @@ class MLPClassifier:
 
         # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱ Assignment 4.2 ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #
         # TODO:                                                             #
-        # Implement the prediction function of the model.                   #
+        # Predict one label per sample: the class with the highest logit.   #
+        # This is the same as Assignment 3.2.                               #
+        #                                                                   #
+        # Shapes: X is (N, D), the logits from self.forward(X) are (N, C)   #
+        # and y_pred must be a PyTorch tensor of shape (N,).                #
+        #                                                                   #
+        # HINT 1: Use self.forward to get the logits.                       #
+        # HINT 2: torch.argmax(tensor, dim=...) returns the index of the    #
+        #         largest value along one dimension. Which dimension        #
+        #         holds the classes?                                        #
+        # HINT 3: Predictions need no gradients, so you can wrap the code   #
+        #         in `with torch.no_grad():`.                               #
         #                                                                   #
         # Good luck!                                                        #
         # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #
@@ -192,10 +234,25 @@ class MLPClassifier:
 
         # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱ Assignment 4.3 ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #
         # TODO:                                                             #
-        # Implement the loss function of the model. The loss function       #
-        # should be the cross-entropy loss with L2 regularization.          #
+        # Compute the cross-entropy loss with L2 regularization of ALL six  #
+        # parameters (weights and biases):                                  #
+        #     loss = CE(logits, y) + reg * R                                #
+        #     R    = sum(W1 ** 2) + sum(b1 ** 2) + sum(W2 ** 2)             #
+        #          + sum(b2 ** 2) + sum(W3 ** 2) + sum(b3 ** 2)             #
+        # where CE is the mean cross-entropy over the batch and reg is      #
+        # self.reg. The shapes of the parameters are listed in 4.1.         #
         #                                                                   #
-        # HINT: You may find torch.nn.CrossEntropyLoss() useful.            #
+        # Shapes: X is (N, D), y is (N,) with integer labels 0 ... C-1.     #
+        #                                                                   #
+        # HINT 1: torch.nn.CrossEntropyLoss()(logits, y) takes the raw      #
+        #         logits of shape (N, C), not probabilities. It applies     #
+        #         the softmax itself and averages over the batch.           #
+        # HINT 2: self.params is a dictionary, so                           #
+        #             for param in self.params.values():                    #
+        #         visits all six parameters. No need to write six terms.    #
+        # HINT 3: Build the loss from PyTorch operations only (no numpy,    #
+        #         no .item()), so that loss.backward() can compute          #
+        #         the gradients.                                            #
         #                                                                   #
         # Good luck!                                                        #
         # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #
@@ -217,10 +274,22 @@ class MLPClassifier:
 
         # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱ Assignment 4.4 ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #
         # TODO:                                                             #
-        # Implement the weight update step using the gradient descent.      #
+        # Take one gradient-descent step for all six parameters             #
+        # W1, b1, W2, b2, W3, b3:                                           #
+        #     param = param - learning_rate * dL/dparam                     #
+        # This is the step from Assignment 3.4, applied to every parameter. #
         #                                                                   #
-        # HINT: Use the self.learning_rate attribute for the learning rate  #
-        # and update the .data attribute of the model parameters.           #
+        # loss.backward() has already computed the gradients and stored     #
+        # them next to the parameters: param.grad has the same shape as     #
+        # param, e.g. self.params["W1"].grad is (D, H1).                    #
+        #                                                                   #
+        # HINT 1: Use self.learning_rate for the learning rate.             #
+        # HINT 2: Loop over the parameters with                             #
+        #             for param in self.params.values():                    #
+        # HINT 3: Write the new values into `.data`, for example            #
+        #             param.data = param.data - ...                         #
+        #         Writing `param = param - ...` would only create a new     #
+        #         local variable and leave the model unchanged.             #
         #                                                                   #
         # Good luck!                                                        #
         # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #
@@ -236,6 +305,7 @@ class MLPClassifier:
         # 🌀 TERMINATION 🌀 (Your code reaches its end. 🏁 Do not delete this line.)
 
     def _zero_gradients(self):
+        """Zero the gradients of the model parameters."""
         for name in self.params.keys():
             if self.params[name].grad is not None:
                 self.params[name].grad.zero_()

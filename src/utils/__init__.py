@@ -13,6 +13,7 @@ from .plot import (
     plot_knn_cross_validation,
     plot_training,
     plot_training_runs,
+    plot_activation_functions,
     plot_weights_as_templates,
     plot_template_comparison,
     plot_template_matches,
