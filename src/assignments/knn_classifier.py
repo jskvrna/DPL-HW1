@@ -84,6 +84,7 @@ class KNNClassifier:
 
         for i in range(num_test):
             for j in range(num_train):
+                dists[i, j] = 0
                 # ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱ Assignment 1.1 ▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰ #
                 # TODO:                                                             #
                 # Calculate the L2 distance between the ith test point and the jth  #
